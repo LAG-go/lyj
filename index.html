@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>按揭跟单 · 全流程看板</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Microsoft YaHei',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#eef2f5;padding:20px;}
+.dashboard{max-width:1800px;margin:0 auto;}
+
+/* ─── 头部 ─── */
+.header{background:linear-gradient(135deg,#166534 0%,#0a3b2a 100%);border-radius:24px;padding:20px 28px;margin-bottom:22px;color:#fff;box-shadow:0 8px 20px rgba(0,0,0,.09);}
+.header h1{font-size:22px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.header h1 small{font-size:13px;font-weight:400;background:rgba(255,255,255,.2);padding:3px 12px;border-radius:40px;margin-left:10px;}
+.gen-time{font-size:11px;opacity:.6;margin-top:4px;}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px;}
+.btn{background:rgba(255,255,255,.16);border:none;color:#fff;padding:5px 14px;border-radius:30px;font-size:12.5px;cursor:pointer;font-weight:500;transition:all .2s;}
+.btn:hover{background:rgba(255,255,255,.28);transform:translateY(-1px);}
+.btn.active{background:#f59e0b;color:#1a2e1a;font-weight:700;}
+.search-box{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:5px 14px;border-radius:30px;font-size:12.5px;outline:none;width:200px;}
+.search-box::placeholder{color:rgba(255,255,255,.55);}
+
+/* ─── 统计卡片 ─── */
+.stats-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+.stat-card{background:#fff;border-radius:18px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;min-width:130px;flex:1;box-shadow:0 1px 4px rgba(0,0,0,.07);cursor:pointer;transition:all .2s;border:1.5px solid #f0f2f5;}
+.stat-card:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(0,0,0,.1);background:#fefce8;}
+.stat-card h4{font-size:11.5px;color:#6b7280;margin-bottom:5px;}
+.stat-num{font-size:26px;font-weight:800;color:#166534;}
+.stat-icon{font-size:30px;opacity:.7;}
+
+/* ─── 流程泳道 - 大节点卡片包小节点卡片（常显，无需展开）── */
+.swimlane-wrap{margin-bottom:20px;overflow-x:auto;padding:4px 0 8px;}
+.swimlane{display:flex;gap:6px;flex-wrap:nowrap;align-items:stretch;}
+/* 大节点容器：白底大框（参考 nginx/index.html） */
+.lane-group{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);border:1px solid #e5e7eb;min-width:130px;flex:1 1 0;max-width:170px;transition:all .15s;display:flex;flex-direction:column;position:relative;padding:0;overflow:visible;}
+.lane-group:hover{box-shadow:0 3px 10px rgba(0,0,0,.08);transform:translateY(-1px);z-index:2;}
+/* 大节点之间连接箭头（紧凑） */
+.lane-arrow{display:flex;align-items:center;justify-content:center;flex:0 0 8px;min-width:8px;color:#94a3b8;font-size:11px;font-weight:700;user-select:none;align-self:center;line-height:1;}
+.lane-arrow::before{content:'▶';}
+/* 大节点标题：右指箭头形（左侧斜切、右侧凸出，整体就是一个 ▶ 形状） */
+.group-header{position:relative;color:#fff;padding:8px 14px 8px 10px;font-weight:700;font-size:14.5px;text-align:center;letter-spacing:.3px;cursor:pointer;line-height:1.25;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#94a3b8;transition:all .15s;clip-path:polygon(0% 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 0% 100%, 10px 50%);}
+.group-header:hover{filter:brightness(1.08);}
+/* 异常 = 红色；有数据 = 蓝色 */
+.group-header.warn-bg{background:#dc2626;}
+.group-header.normal-bg{background:#2563eb;}
+.lane-group.lane-selected{border-color:#2563eb;box-shadow:0 0 0 2px #2563eb, 0 4px 14px rgba(37,99,235,.2);}
+.lane-group.lane-selected.lane-warn{border-color:#dc2626;box-shadow:0 0 0 2px #dc2626, 0 4px 14px rgba(220,38,38,.2);}
+.group-header .sub{font-weight:600;font-size:10.5px;opacity:.92;display:block;margin-top:2px;letter-spacing:.2px;}
+/* 子节点区：在大框内部直接堆叠（参考文件） */
+.sub-lanes{display:flex;flex-direction:column;gap:4px;padding:6px;flex:1;background:transparent;border:0;margin:0;}
+/* 小节点之间的小箭头（垂直 ▼，紧凑） */
+.sub-arrow{flex:0 0 6px;min-height:6px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:8px;font-weight:700;user-select:none;align-self:center;line-height:1;}
+.sub-arrow::before{content:'▼';}
+.sub-arrow[data-empty='1']{opacity:.3;}
+/* 小节点：圆角矩形卡片（保持参考文件的轻量风格） */
+.sub-lane{position:relative;background:#f8fafc;padding:5px 6px 4px;border-radius:6px;border:1px solid #e9edf2;transition:all .15s;cursor:default;}
+.sub-lane:hover{background:#f1f5f9;border-color:#cbd5e1;}
+/* 异常 = 红边红底 */
+.sub-lane.sub-warn{background:#fef2f2;border-color:#fca5a5;}
+/* 选中态 */
+.sub-lane.selected-sub{background:#dbeafe;border-color:#2563eb;}
+/* 小节点顶部行：名称（独占一行，不截断，自动换行） */
+.sub-lane .sub-header{padding:0 2px 3px;cursor:pointer;font-size:10.5px;font-weight:600;color:#1e293b;line-height:1.3;text-align:center;}
+.sub-lane .sub-header .sub-name{display:block;white-space:normal;word-break:break-all;line-height:1.3;}
+/* 异常名称标红 */
+.sub-lane.sub-warn .sub-header .sub-name{color:#b91c1c;}
+/* 小节点底部统计行：两个胶囊，标题+数量分两行 */
+.sub-lane .sub-stats{display:flex;justify-content:space-between;gap:3px;font-size:10px;margin-top:3px;}
+.sub-lane .sub-stats span{cursor:pointer;padding:2px 4px;border-radius:6px;background:#f1f5f9;color:#475569;flex:1;text-align:center;transition:all .15s;user-select:none;line-height:1.2;font-weight:600;}
+.sub-lane .sub-stats span:hover{background:#e2e8f0;}
+.sub-lane .sub-stats .active-stat{background:#2563eb;color:#fff;font-weight:700;}
+.sub-lane .sub-stats .warn-stat{background:#fee2e2;color:#b91c1c;font-weight:700;}
+.sub-lane .sub-stats .warn-stat:hover{background:#fecaca;}
+.sub-lane .sub-stats .warn-active{background:#dc2626;color:#fff;font-weight:700;}
+/* 无异常时的 ⚠ 胶囊（灰色） */
+.sub-lane .sub-stats .empty-stat{background:#f1f5f9;color:#9ca3af;cursor:default;}
+.sub-lane .sub-stats .empty-stat:hover{background:#f1f5f9;}
+
+/* ─── 主表格 ─── */
+.section-title{font-size:14px;font-weight:700;color:#1f2937;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.table-wrap{background:#fff;border-radius:20px;overflow:auto;box-shadow:0 2px 8px rgba(0,0,0,.06);border:1px solid #edf2f7;margin-bottom:24px;overflow-x:auto;max-height:calc(100vh - 280px);}
+.data-table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px;position:sticky;top:0;}
+.data-table thead{position:sticky;top:0;z-index:10;}
+.data-table th{background:#f9fbfd;font-weight:700;color:#374151;padding:10px 11px;border-bottom:2px solid #e5e7eb;white-space:nowrap;position:sticky;top:0;z-index:2;font-size:11.5px;text-align:center;}
+.data-table td{padding:9px 11px;border-bottom:1px solid #f0f4f8;vertical-align:middle;text-align:center;}
+.data-table td.cell-left{text-align:left;}
+.data-table td ul.warn-list{text-align:left;}
+.data-table tbody tr:hover{background:#fefce8;}
+.data-table tbody tr.warn-row{background:#fff9f9;}
+.data-table tbody tr.warn-row:hover{background:#fff0ee;}
+
+/* ─── 流程进度条 ─── */
+.progress-track{display:flex;align-items:center;gap:0;width:100%;min-width:420px;}
+.prog-step{flex:1;text-align:center;position:relative;}
+.prog-dot{width:11px;height:11px;border-radius:50%;margin:0 auto 2px;border:2px solid #d1d5db;background:#fff;}
+.prog-dot.done{background:#166534;border-color:#166534;}
+.prog-dot.current{background:#f59e0b;border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.25);}
+.prog-dot.warn{background:#dc2626;border-color:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.2);}
+.prog-label{font-size:9px;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:56px;display:block;margin:0 auto;}
+.prog-label.current-lbl{color:#b45309;font-weight:700;}
+.prog-label.warn-lbl{color:#dc2626;font-weight:700;}
+.prog-connector{position:absolute;top:4px;left:50%;right:-50%;height:2px;background:#e5e7eb;z-index:0;}
+.prog-connector.done{background:#166534;}
+
+/* ─── 标签 ─── */
+.tag{border-radius:20px;padding:2px 8px;display:inline-block;font-size:11px;font-weight:600;}
+.tag-ok{background:#e8f5e9;color:#2e6b3e;}
+.tag-warn{background:#fff3e0;color:#b45309;}
+.tag-danger{background:#ffebee;color:#c62828;}
+.tag-info{background:#e3f2fd;color:#0b5e7e;}
+.tag-lt2{background:#fce4ec;color:#880e4f;}
+.tag-lt5{background:#fff8e1;color:#e65100;}
+.tag-gray{background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;}
+
+.warn-list{list-style:none;margin:0;padding:0;}
+.warn-list li{margin:2px 0;font-size:11px;color:#b91c1c;line-height:1.4;}
+.warn-list li.warn-timeout{background:linear-gradient(90deg,#fff7ed 0%,#fef3c7 100%);border-left:3px solid #f59e0b;padding:6px 8px;margin:4px 0;border-radius:4px;color:#78350f;}
+.warn-rule-id{display:inline-block;background:#dc2626;color:#fff;font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700;margin-right:4px;}
+.warn-overdue{color:#dc2626;font-weight:700;}
+.warn-owner{display:inline-block;margin-right:8px;color:#1e40af;}
+.warn-resolve{color:#4b5563;font-size:10.5px;}
+.order-link{color:#1e6f9f;text-decoration:none;font-weight:600;font-size:12px;}
+.order-link:hover{text-decoration:underline;}
+.elapsed-badge{font-size:11px;color:#6b7280;}
+.elapsed-badge.slow{color:#dc2626;font-weight:700;}
+
+.summary-bar{font-size:12.5px;color:#374151;background:#f1f5f9;padding:6px 16px;border-radius:30px;display:inline-block;margin-bottom:14px;}
+.empty-state{text-align:center;padding:40px;color:#9ca3af;}
+
+/* ─── 列控制 ─── */
+.col-panel{background:#fff;border-radius:16px;padding:10px 18px;margin-bottom:14px;display:none;flex-wrap:wrap;gap:8px;align-items:center;border:1px solid #e5e7eb;}
+.col-tag{background:#f8fafc;border:1px solid #cbd5e1;padding:3px 10px;border-radius:20px;font-size:11.5px;cursor:pointer;color:#1e293b;font-weight:500;transition:all .15s;}
+.col-tag:hover{background:#e2e8f0;}
+.col-tag.off{background:#fee2e2;border-color:#f87171;color:#991b1b;text-decoration:line-through;opacity:.8;}
+
+/* ─── 分组标题行 ─── */
+.group-header-row td{background:#f0fdf4;color:#166534;font-weight:700;font-size:12px;padding:7px 11px;border-bottom:1.5px solid #bbf7d0;}
+</style>
+</head>
+<body>
+<div class="dashboard">
+
+<!-- 头部 -->
+<div class="header">
+  <h1>🏠 按揭跟单 · 全流程进度看板 <small>智能预警</small></h1>
+  <div class="gen-time">数据更新：2026-06-22 14:22:54</div>
+  <div class="toolbar">
+    <button class="btn active" id="btnAll">📋 全部</button>
+    <button class="btn" id="btnProgress">🚦 进度异常</button>
+    <button class="btn" id="btnWarn">⚠️ 异常单</button>
+    <button class="btn" id="btnLt2">🔴 不满两年</button>
+    <button class="btn" id="btnLt5">🟠 满二不满五</button>
+    <button class="btn" id="btnGroup" onclick="toggleGroupMode()">🗂️ 按节点分组</button>
+    <button class="btn" id="btnSortDate" onclick="toggleSortDate()">📅 按监管日期排序</button>
+    <button class="btn" id="btnCols" onclick="toggleColPanel()">🎛️ 列设置</button>
+    <input class="search-box" id="searchBox" placeholder="🔍 搜索单号/物业/专员..." oninput="onSearch()">
+    <button class="btn" onclick="location.reload()">🔄 刷新</button>
+  </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="stats-row" id="statsRow"></div>
+
+<!-- 流程泳道 -->
+<div class="swimlane-wrap">
+  <div class="swimlane" id="swimlane"></div>
+</div>
+
+<!-- 列控制 -->
+<div class="col-panel" id="colPanel"></div>
+
+<!-- 表格区 -->
+<div class="summary-bar" id="summaryBar"></div>
+<div class="table-wrap" id="tableWrap"></div>
+
+</div><!-- /dashboard -->
+
+<script>
+// ============================================================
+//  核心数据
+// ============================================================
+const RAW_DATA   = [
+  {"order_no":"M3332607-1210","property":"星河传奇花园-1栋B座2503","deal_date":"2026-07-21","supervise_date":"暂无","node_raw":"资料交接/权证","node_items":["资料交接","权证"],"current_stage_id":"资料交接","current_stage":"资料交接","stage_idx":7,"elapsed_days":3,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"聂梁","loan_staff":"张诗楠","cert_staff":"麦钰陶","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=26bcc711-e170-49b5-92df-1b98dc43892b&gzdh=M3332607-1210","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"张宇","client_names":"宋满秀","business_status":"进行中","risk_info":"无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"资料交接","color":"green","stage_id":"资料交接","stage_idx":8},{"item":"权证","color":"gray","stage_id":"权证","stage_idx":9}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1207","property":"星河传奇花园-1栋A座906","deal_date":"2026-07-20","supervise_date":"暂无","node_raw":"核实信息/网签","node_items":["核实信息","网签"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":4,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"朱朋","loan_staff":"张诗楠","cert_staff":"王曼玉","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=51caecc8-1d0d-4893-92a9-5d96e9172e13&gzdh=M3332607-1207","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"李敏","client_names":"晏启豪","business_status":"进行中","risk_info":"无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"核实信息","color":"green","stage_id":"核实信息","stage_idx":3},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1067","property":"星河传奇花园-1栋B座3303","deal_date":"2026-07-20","supervise_date":"暂无","node_raw":"资料交接/权证","node_items":["资料交接","权证"],"current_stage_id":"资料交接","current_stage":"资料交接","stage_idx":7,"elapsed_days":4,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"郑锦鸿","loan_staff":"张诗楠","cert_staff":"喻杨","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=d0f02db9-b068-4eac-91b5-cfc690de6a07&gzdh=M3332607-1067","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"张宇","client_names":"陈玉玲","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"资料交接","color":"green","stage_id":"资料交接","stage_idx":8},{"item":"权证","color":"gray","stage_id":"权证","stage_idx":9}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1147","property":"新彩苑-2栋B座3503","deal_date":"2026-07-19","supervise_date":"暂无","node_raw":"核实信息/网签","node_items":["核实信息","网签"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":5,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"刘凡","loan_staff":"张诗楠","cert_staff":"罗莹","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=8ca509c6-80c5-428d-a39a-620b68672130&gzdh=M3332607-1147","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"林展鸿","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"核实信息","color":"green","stage_id":"核实信息","stage_idx":3},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0979","property":"星河传奇花园-1栋C座3005","deal_date":"2026-07-18","supervise_date":"暂无","node_raw":"核实信息/网签","node_items":["核实信息","网签"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":6,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"胡波","loan_staff":"张诗楠","cert_staff":"罗莹","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=8a3501e7-1525-4616-b058-164a5ce846da&gzdh=M3332607-0979","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"吴文涛","client_names":"黄嘉雄","business_status":"进行中","risk_info":"&#10;⚠️存在异常问题，请店长关注：&#10;1. 该房产由企业持有（权利人：深圳雅阁豪装饰工程有限公司），交易过程中涉及的税费（如增值税、土地增值税等）计算规则较为复杂，为避免后续产生争议，建议在合同中明确约定相关税费由卖方承担，而不宜约定由买方缴纳，请提前咨询按揭员。&#10;&#10;&#10;1. 该房产由企业持有（权利人：深圳雅阁豪装饰工程有限公司），交易过程中涉及的税费（如增值税、土地增值税等）计算规则较为复杂，为避免后续产生争议，建议在合同中明确约定相关税费由卖方承担，而不宜约定由买方缴纳，请提前咨询按揭员。&#10;&#10;","warnings":["&#10;⚠️存在异常问题，请店长关注：&#10;1. 该房产由企业持有（权利人：深圳雅阁豪装饰工程有限公司），交易过程中涉及的税费（如增值税、土地增值税等）计算规则较为复杂，为避免后续产生争议，建议在合同中明确约定相关税费由卖方承担，而不宜约定由买方缴纳，请提前咨询按揭员。&#10;&#10;&#10;1. 该房产由企业持有（权利人：深圳雅阁豪装饰工程有限公司），交易过程中涉及的税费（如增值税、土地增值税等）计算规则较为复杂，为避免后续产生争议，建议在合同中明确约定相关税费由卖方承担，而不宜约定由买方缴纳，请提前咨询按揭员。&#10;&#10;"],"warn_types":["enterprise_ownership"],"has_warning":true,"has_progress_warn":false,"item_styles":[{"item":"核实信息","color":"green","stage_id":"核实信息","stage_idx":3},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0798","property":"星河传奇花园-1栋C座2501","deal_date":"2026-07-15","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":9,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"张皓翔","loan_staff":"张诗楠","cert_staff":"麦钰陶","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=d7eb2a91-335f-4ca8-86c7-3c1c9c308d31&gzdh=M3332607-0798","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"余子康","client_names":"张勇","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0784","property":"星河传奇花园-1栋C座2902","deal_date":"2026-07-15","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":9,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"徐德周","loan_staff":"张诗楠","cert_staff":"王曼玉","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=b51f0a55-ac19-4e59-ae90-f2028f0ca40e&gzdh=M3332607-0784","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"张宇","client_names":"范玲","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0788","property":"星河传奇花园-1栋A座2803","deal_date":"2026-07-15","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":9,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"王灏霖","loan_staff":"张诗楠","cert_staff":"马春雪","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=1c37b6b8-81e5-483a-8bc1-2b4bab369f3d&gzdh=M3332607-0788","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"&#10;⚠️请尽快在成交单上传房产证，AI已自动从房源查找房产证并识别。&#10;⚠️请尽快在成交单上传房产证，AI已自动从房源查找房产证并识别。&#10;⚠️存在异常问题，请店长关注：&#10;1. 该房产持有不满 5 年，需要交个税，计算税费时请留意。&#10;&#10;&#10;1. 该房产持有不满 5 年，需要交个税，计算税费时请留意。&#10;&#10;","warnings":["&#10;⚠️请尽快在成交单上传房产证，AI已自动从房源查找房产证并识别。&#10;⚠️请尽快在成交单上传房产证，AI已自动从房源查找房产证并识别。&#10;⚠️存在异常问题，请店长关注：&#10;1. 该房产持有不满 5 年，需要交个税，计算税费时请留意。&#10;&#10;&#10;1. 该房产持有不满 5 年，需要交个税，计算税费时请留意。&#10;&#10;"],"warn_types":[],"has_warning":true,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0728","property":"星河传奇花园-1栋A座3203","deal_date":"2026-07-16","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":8,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"林一煌","loan_staff":"张诗楠","cert_staff":"王曼玉","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=e4b5b0f2-32a9-4b63-90ea-8e0022645149&gzdh=M3332607-0728","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0429","property":"锦绣御园-6栋2403","deal_date":"2026-07-09","supervise_date":"暂无","node_raw":"资料交接","node_items":["资料交接"],"current_stage_id":"资料交接","current_stage":"资料交接","stage_idx":7,"elapsed_days":15,"remind_transfer":0,"remind_loan":1,"remind_mortgage":0,"remind_fund":0,"remind_cert":1,"master":"贺龙","loan_staff":"张诗楠","cert_staff":"王曼玉","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=d50787bf-1b3c-4777-8c72-e71720e5ddc0&gzdh=M3332607-0429","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"资料交接","color":"green","stage_id":"资料交接","stage_idx":8}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0432","property":"星河传奇花园-1栋B座3202","deal_date":"2026-07-09","supervise_date":"暂无","node_raw":"资料交接","node_items":["资料交接"],"current_stage_id":"资料交接","current_stage":"资料交接","stage_idx":7,"elapsed_days":15,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"郑锦鸿","loan_staff":"张诗楠","cert_staff":"喻杨","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=5e06af89-5956-409b-9d67-347d5e61f011&gzdh=M3332607-0432","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"资料交接","color":"green","stage_id":"资料交接","stage_idx":8}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0306","property":"锦绣御园-1栋B座2205","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"江红","loan_staff":"张诗楠","cert_staff":"王曼玉","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=a865243d-ae76-4579-82a7-e4a9402ac5a9&gzdh=M3332607-0306","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"&#10;⚠️请尽快在成交单上传房产证，AI已自动从房源查找房产证并识别。&#10;⚠️请尽快在成交单上传房产证，AI已自动从房源查找房产证并识别。&#10;⚠️存在异常问题，请店长关注：&#10;1. 房产证地址与合同约定物业地址不一致（交易物业地址与房产证地址的核心要素完全不匹配，房号和小区名称差异较大。）&#10;&#10;&#10;1. 房产证地址与合同约定物业地址不一致（交易物业地址与房产证地址的核心要素完全不匹配，房号和小区名称差异较大。）&#10;&#10;","warnings":["&#10;⚠️请尽快在成交单上传房产证，AI已自动从房源查找房产证并识别。&#10;⚠️请尽快在成交单上传房产证，AI已自动从房源查找房产证并识别。&#10;⚠️存在异常问题，请店长关注：&#10;1. 房产证地址与合同约定物业地址不一致（交易物业地址与房产证地址的核心要素完全不匹配，房号和小区名称差异较大。）&#10;&#10;&#10;1. 房产证地址与合同约定物业地址不一致（交易物业地址与房产证地址的核心要素完全不匹配，房号和小区名称差异较大。）&#10;&#10;"],"warn_types":[],"has_warning":true,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0289","property":"锦绣御园-8栋1804","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"张磊","loan_staff":"张诗楠","cert_staff":"王曼玉","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=905dbb9d-009a-476a-b140-503e0a81864b&gzdh=M3332607-0289","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0279","property":"锦绣御园-8栋1803","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"李刚涛","loan_staff":"张诗楠","cert_staff":"李楚秀","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=b09fcc9e-f243-4f4b-8a4d-7d5c33570904&gzdh=M3332607-0279","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"&#10;⚠️存在异常问题，请店长关注：&#10;1. 该房产持有不满 5 年，需要交个税，计算税费时请留意。&#10;&#10;&#10;1. 该房产持有不满 5 年，需要交个税，计算税费时请留意。&#10;&#10;","warnings":["&#10;⚠️存在异常问题，请店长关注：&#10;1. 该房产持有不满 5 年，需要交个税，计算税费时请留意。&#10;&#10;&#10;1. 该房产持有不满 5 年，需要交个税，计算税费时请留意。&#10;&#10;"],"warn_types":[],"has_warning":true,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0208","property":"锦绣御园-8栋2601","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"詹思涵","loan_staff":"张诗楠","cert_staff":"王曼玉","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=bc4d7dfc-1f57-4c2d-9ceb-fb0e5d14cbec&gzdh=M3332607-0208","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1247","property":"星河传奇花园-1栋C座2405","deal_date":"2026-07-21","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":3,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1064","property":"星河传奇花园-1栋B座3101","deal_date":"2026-07-20","supervise_date":"暂无","node_raw":"网签","node_items":["网签"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":4,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"网签","color":"green","stage_id":"网签","stage_idx":4}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1185","property":"星河传奇花园-1栋A座3304","deal_date":"2026-07-20","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":4,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1184","property":"星河传奇花园-1栋B座2406","deal_date":"2026-07-20","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":4,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1133","property":"新彩苑-2栋A座1104","deal_date":"2026-07-17","supervise_date":"暂无","node_raw":"核对楼款","node_items":["核对楼款"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":7,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"核对楼款","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1086","property":"星河传奇花园-1栋A座2202","deal_date":"2026-07-22","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":2,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0998","property":"锦绣御园-2栋2001","deal_date":"2026-07-06","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":18,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"张碧华","client_names":"赖晓烽","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1083","property":"星河传奇花园-1栋C座2301","deal_date":"2026-07-22","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":2,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1029","property":"锦绣御园-1栋B座2703","deal_date":"2026-07-19","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":5,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0921","property":"星河传奇花园-1栋C座2401","deal_date":"2026-07-13","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":11,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0882","property":"星河传奇花园-1栋C座2406","deal_date":"2026-07-14","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":10,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0847","property":"锦绣御园-3栋706","deal_date":"2026-07-12","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":12,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"聂声波","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0777","property":"锦绣御园-8栋2102","deal_date":"2026-07-14","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":10,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0773","property":"锦绣御园-8栋2402","deal_date":"2026-07-14","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":10,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0726","property":"金地梅陇镇-17栋E单元502","deal_date":"2026-07-12","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":12,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"黄利娟","client_names":"蒲丽","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0741","property":"星河传奇花园-1栋A座205","deal_date":"2026-07-12","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":12,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0702","property":"星河传奇花园-1栋C座3001","deal_date":"2026-07-11","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":13,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0675","property":"星河传奇花园-1栋A座3202","deal_date":"2026-07-11","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":13,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0654","property":"星河传奇花园-1栋A座2705","deal_date":"2026-07-11","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":13,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0652","property":"锦绣御园-3栋203","deal_date":"2026-07-11","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":13,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"聂声波","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0642","property":"锦绣御园-9栋1901","deal_date":"2026-07-11","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":13,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0507","property":"新彩苑-2栋A座1104","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0046","property":"锦绣御园-8栋2603","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0436","property":"锦绣御园-8栋402","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0223","property":"锦绣御园-6栋706","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0658","property":"金地塞拉维花园-8栋B单元202","deal_date":"2026-06-28","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":26,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"丁雪艳","client_names":"王腾飞","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0645","property":"锦绣御园-8栋303","deal_date":"2026-07-07","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":17,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0638","property":"锦绣御园-1栋B座2505","deal_date":"2026-06-28","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":26,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0615","property":"锦绣御园-8栋2001","deal_date":"2026-06-28","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":26,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0617","property":"锦绣御园-8栋2202","deal_date":"2026-06-28","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":26,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0226","property":"锦绣御园-7栋703","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0210","property":"锦绣御园-9栋1803","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0376","property":"锦绣御园-8栋2001","deal_date":"2026-07-09","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":15,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1766","property":"锦绣东方-锦涛阁-20B","deal_date":"2026-07-23","supervise_date":"暂无","node_raw":"交房/结清物业","node_items":["交房","结清物业"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":1,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"交房","color":"green","stage_id":"过户","stage_idx":11},{"item":"结清物业","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1806","property":"金地龙城中央-—","deal_date":"暂无","supervise_date":"暂无","node_raw":"业务进行中","node_items":["业务进行中"],"current_stage_id":"暂无","current_stage":"暂无","stage_idx":99,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"—","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"业务进行中","color":"green","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1790","property":"翠景园-1栋-304","deal_date":"2026-07-20","supervise_date":"暂无","node_raw":"核实信息/网签","node_items":["核实信息","网签"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":4,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"核实信息","color":"green","stage_id":"核实信息","stage_idx":3},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1736","property":"庐峰翠苑-金牛座-13A","deal_date":"2026-07-20","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":4,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1135","property":"香珠花园-A栋-11B","deal_date":"2026-07-15","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":9,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1699","property":"博伦花园-1栋-3C","deal_date":"2026-07-16","supervise_date":"暂无","node_raw":"—","node_items":["—"],"current_stage_id":"暂无","current_stage":"暂无","stage_idx":99,"elapsed_days":8,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"—","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"—","color":"green","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1683","property":"苹果园-1栋狮子座","deal_date":"暂无","supervise_date":"暂无","node_raw":"—","node_items":["—"],"current_stage_id":"暂无","current_stage":"暂无","stage_idx":99,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"—","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"—","color":"green","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1665","property":"怀德国际广场-D栋-1318","deal_date":"2026-07-17","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":7,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1638","property":"怀德国际广场-D栋-503","deal_date":"2026-07-17","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":7,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1590","property":"彩田村-8栋-14B","deal_date":"2026-07-16","supervise_date":"暂无","node_raw":"核实信息/网签","node_items":["核实信息","网签"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":8,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"核实信息","color":"green","stage_id":"核实信息","stage_idx":3},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1566","property":"侨香村-9栋B座-22G","deal_date":"2026-07-14","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":10,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1524","property":"市政大院-24栋-705","deal_date":"2026-07-11","supervise_date":"暂无","node_raw":"监管资金发放","node_items":["监管资金发放"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":13,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"监管资金发放","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0888","property":"金海华府-C座-3202","deal_date":"2026-07-09","supervise_date":"暂无","node_raw":"核实信息/预约过户","node_items":["核实信息","预约过户"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":15,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"核实信息","color":"green","stage_id":"核实信息","stage_idx":3},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1555","property":"招商观园-7栋-2413","deal_date":"2026-07-09","supervise_date":"暂无","node_raw":"预约过户/赎楼","node_items":["预约过户","赎楼"],"current_stage_id":"赎楼","current_stage":"赎楼","stage_idx":6,"elapsed_days":15,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户","color":"green","stage_id":"过户","stage_idx":11},{"item":"赎楼","color":"gray","stage_id":"赎楼","stage_idx":7}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1545","property":"光彩新世纪家园-C栋-917","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"发放公积金/商业贷款","node_items":["发放公积金","商业贷款"],"current_stage_id":"按揭贷款","current_stage":"按揭贷款","stage_idx":5,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"发放公积金","color":"green","stage_id":"按揭贷款","stage_idx":6},{"item":"商业贷款","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1510","property":"华润城润府一期-4期-1005","deal_date":"2026-07-07","supervise_date":"暂无","node_raw":"预约过户/监管资金发放","node_items":["预约过户","监管资金发放"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":17,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户","color":"green","stage_id":"过户","stage_idx":11},{"item":"监管资金发放","color":"gray","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1477","property":"深业东岭-3栋-907","deal_date":"暂无","supervise_date":"暂无","node_raw":"—","node_items":["—"],"current_stage_id":"暂无","current_stage":"暂无","stage_idx":99,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"—","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"—","color":"green","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1462","property":"深大电话公寓-2栋-4F","deal_date":"2026-07-04","supervise_date":"暂无","node_raw":"发放监管资金/递件","node_items":["发放监管资金","递件"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":20,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"发放监管资金","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"递件","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1473","property":"城市天地广场-F座-3004","deal_date":"2026-07-04","supervise_date":"暂无","node_raw":"缴纳税费/预约取证","node_items":["缴纳税费","预约取证"],"current_stage_id":"权证","current_stage":"权证","stage_idx":8,"elapsed_days":20,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"缴纳税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"预约取证","color":"gray","stage_id":"权证","stage_idx":9}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1461","property":"锦绣东方-锦涛阁-12A","deal_date":"2026-07-06","supervise_date":"暂无","node_raw":"复验税费/购房资格核验","node_items":["复验税费","购房资格核验"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":18,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"购房资格核验","color":"gray","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1451","property":"香珠花园-A栋-11B","deal_date":"2026-07-11","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":13,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1457","property":"翠景园-1栋-304","deal_date":"2026-07-16","supervise_date":"暂无","node_raw":"复验税费/递件过户","node_items":["复验税费","递件过户"],"current_stage_id":"核算税费","current_stage":"核算税费","stage_idx":9,"elapsed_days":8,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"递件过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0875","property":"城市天地广场-F座-1610","deal_date":"2026-07-03","supervise_date":"暂无","node_raw":"缴纳税费/预约取证","node_items":["缴纳税费","预约取证"],"current_stage_id":"权证","current_stage":"权证","stage_idx":8,"elapsed_days":21,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"缴纳税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"预约取证","color":"gray","stage_id":"权证","stage_idx":9}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1402","property":"苹果园-1栋狮子座-2126","deal_date":"2026-07-05","supervise_date":"暂无","node_raw":"预约过户/监管资金发放","node_items":["预约过户","监管资金发放"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":19,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户","color":"green","stage_id":"过户","stage_idx":11},{"item":"监管资金发放","color":"gray","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1409","property":"庐峰翠苑-水瓶座-601","deal_date":"2026-07-20","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":4,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1384","property":"博伦花园-1栋-3C","deal_date":"2026-07-14","supervise_date":"暂无","node_raw":"复验税费/预约过户","node_items":["复验税费","预约过户"],"current_stage_id":"核算税费","current_stage":"核算税费","stage_idx":9,"elapsed_days":10,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1392","property":"怀德国际广场-D栋-816","deal_date":"2026-07-18","supervise_date":"暂无","node_raw":"递件过户/监管资金发放","node_items":["递件过户","监管资金发放"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":6,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"递件过户","color":"green","stage_id":"过户","stage_idx":11},{"item":"监管资金发放","color":"gray","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1326","property":"深大电话公寓-2栋-510","deal_date":"2026-07-04","supervise_date":"暂无","node_raw":"监管资金发放/递件","node_items":["监管资金发放","递件"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":20,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"监管资金发放","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"递件","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1360","property":"怀德国际广场-D栋-610","deal_date":"2026-07-18","supervise_date":"暂无","node_raw":"预约过户/复验税费","node_items":["预约过户","复验税费"],"current_stage_id":"核算税费","current_stage":"核算税费","stage_idx":9,"elapsed_days":6,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户","color":"green","stage_id":"过户","stage_idx":11},{"item":"复验税费","color":"gray","stage_id":"核算税费","stage_idx":10}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1120","property":"金众麒麟公馆-3栋-2402","deal_date":"2026-07-15","supervise_date":"暂无","node_raw":"监管资金发放/商业贷款审批","node_items":["监管资金发放","商业贷款审批"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":9,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"监管资金发放","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"商业贷款审批","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1112","property":"侨香村-9栋B座-3B","deal_date":"2026-07-07","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":17,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1095","property":"市政大院-24栋-601","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"监管资金发放/缴纳税费","node_items":["监管资金发放","缴纳税费"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"监管资金发放","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"缴纳税费","color":"gray","stage_id":"核算税费","stage_idx":10}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1007","property":"金海华府-C座-1003","deal_date":"2026-07-09","supervise_date":"暂无","node_raw":"复验税费/预约过户","node_items":["复验税费","预约过户"],"current_stage_id":"核算税费","current_stage":"核算税费","stage_idx":9,"elapsed_days":15,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1046","property":"招商观园-7栋-2106","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"预约过户/赎楼/商业贷款审批","node_items":["预约过户","赎楼","商业贷款审批"],"current_stage_id":"赎楼","current_stage":"赎楼","stage_idx":6,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户","color":"green","stage_id":"过户","stage_idx":11},{"item":"赎楼","color":"gray","stage_id":"赎楼","stage_idx":7},{"item":"商业贷款审批","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1026","property":"光彩新世纪家园-C栋-2401","deal_date":"2026-07-08","supervise_date":"暂无","node_raw":"发放公积金贷款/商业贷款","node_items":["发放公积金贷款","商业贷款"],"current_stage_id":"按揭贷款","current_stage":"按揭贷款","stage_idx":5,"elapsed_days":16,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"发放公积金贷款","color":"green","stage_id":"按揭贷款","stage_idx":6},{"item":"商业贷款","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0503","property":"华润城润府一期-4期-2202","deal_date":"2026-07-07","supervise_date":"暂无","node_raw":"预约过户/监管资金发放","node_items":["预约过户","监管资金发放"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":17,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户","color":"green","stage_id":"过户","stage_idx":11},{"item":"监管资金发放","color":"gray","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0946","property":"华润银湖蓝山-6栋2单元-27B","deal_date":"2026-07-12","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":12,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"杨洪亮","client_names":"苏俊炜","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0777","property":"万科四季花城一期-牡丹苑C座-102","deal_date":"2026-04-10","supervise_date":"暂无","node_raw":"录入网签/资金监管","node_items":["录入网签","资金监管"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":105,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"录入网签","color":"green","stage_id":"","stage_idx":0},{"item":"资金监管","color":"gray","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0769","property":"汇雅苑-6栋-603","deal_date":"暂无","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0747","property":"光明1号-7栋-205","deal_date":"暂无","supervise_date":"暂无","node_raw":"核对楼款","node_items":["核对楼款"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"核对楼款","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0673","property":"有方育才家园-1栋-304","deal_date":"暂无","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0655","property":"阳基春天里-1栋-2104","deal_date":"暂无","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0606","property":"警备区安居苑-B栋-403","deal_date":"暂无","supervise_date":"暂无","node_raw":"复验税费/网签/预约过户","node_items":["复验税费","网签","预约过户"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0598","property":"佳兆业悦峰花园-1栋B单元-3001","deal_date":"2026-04-17","supervise_date":"暂无","node_raw":"结算尾款","node_items":["结算尾款"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":98,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结算尾款","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0136","property":"天悦湾花园-D栋-3B","deal_date":"暂无","supervise_date":"暂无","node_raw":"预约过户/监管/贷款审批","node_items":["预约过户","监管","贷款审批"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户","color":"green","stage_id":"过户","stage_idx":11},{"item":"监管","color":"gray","stage_id":"","stage_idx":0},{"item":"贷款审批","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0544","property":"翔名苑-A3栋-302","deal_date":"暂无","supervise_date":"暂无","node_raw":"复验税费/网签/预约过户","node_items":["复验税费","网签","预约过户"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0484","property":"深业东岭-3栋-2801","deal_date":"2026-03-27","supervise_date":"暂无","node_raw":"验算税费/录入网签","node_items":["验算税费","录入网签"],"current_stage_id":"核算税费","current_stage":"核算税费","stage_idx":9,"elapsed_days":119,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"验算税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"录入网签","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0485","property":"深城公寓-—","deal_date":"暂无","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0351","property":"京隆苑-30栋-5C","deal_date":"暂无","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0358","property":"深业东岭-3栋-907","deal_date":"2026-03-28","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":118,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0122","property":"深城公寓-—","deal_date":"暂无","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0064","property":"桂芳园八期-—","deal_date":"暂无","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0077","property":"京隆苑-30栋-5C","deal_date":"2026-05-11","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":74,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"廖志清","client_names":"张煜婕","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0038","property":"华润银湖蓝山-6栋2单元-32B","deal_date":"2026-05-10","supervise_date":"暂无","node_raw":"监管资金发放/商业贷款审批","node_items":["监管资金发放","商业贷款审批"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":75,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"周全","client_names":"喻学元","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"监管资金发放","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"商业贷款审批","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-6534","property":"奥园·翡翠东湾二期-—","deal_date":"暂无","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-6528","property":"万科四季花城一期-牡丹苑C座-102","deal_date":"2026-04-18","supervise_date":"暂无","node_raw":"资金监管/商业贷款审批","node_items":["资金监管","商业贷款审批"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":97,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"周际","client_names":"汤欣培","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"资金监管","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"商业贷款审批","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-6451","property":"汇雅苑-6栋-603","deal_date":"暂无","supervise_date":"暂无","node_raw":"预约过户前准备","node_items":["预约过户前准备"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户前准备","color":"green","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-6378","property":"有方育才家园-1栋-304","deal_date":"暂无","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-6364","property":"光明1号-7栋-205","deal_date":"暂无","supervise_date":"暂无","node_raw":"核对楼款","node_items":["核对楼款"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"核对楼款","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-6317","property":"深业东岭-3栋-2801","deal_date":"2026-05-10","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":75,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"刘东雪","client_names":"张暄妍","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-6265","property":"阳基春天里-1栋-2104","deal_date":"暂无","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-6172","property":"警备区安居苑-B栋-403","deal_date":"2026-05-05","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":80,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"李黎","client_names":"李帅起","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-5989","property":"翔名苑-A3栋-302","deal_date":"暂无","supervise_date":"暂无","node_raw":"复验税费/网签/预约过户","node_items":["复验税费","网签","预约过户"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-5931","property":"联美新天地华府-—","deal_date":"暂无","supervise_date":"暂无","node_raw":"结算尾款","node_items":["结算尾款"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结算尾款","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-5862","property":"佳兆业悦峰花园-1栋B单元-3001","deal_date":"2026-04-18","supervise_date":"暂无","node_raw":"结算尾款","node_items":["结算尾款"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":97,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结算尾款","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-5799","property":"天悦湾花园-D栋-3B","deal_date":"暂无","supervise_date":"暂无","node_raw":"预约过户/监管/贷款审批","node_items":["预约过户","监管","贷款审批"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户","color":"green","stage_id":"过户","stage_idx":11},{"item":"监管","color":"gray","stage_id":"","stage_idx":0},{"item":"贷款审批","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-5776","property":"香蜜三村-4栋-1207","deal_date":"2026-05-07","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":78,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"朱建伟/赵烨","client_names":"曹志辉","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-5486","property":"深城公寓-—","deal_date":"暂无","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-5313","property":"冠城世家-云龙轩-17B","deal_date":"2026-05-05","supervise_date":"暂无","node_raw":"复验税费/购房资格核验","node_items":["复验税费","购房资格核验"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":80,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"黄清银","client_names":"陈家敏","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"购房资格核验","color":"gray","stage_id":"核实信息","stage_idx":3}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-5224","property":"金地上塘道花园-—","deal_date":"暂无","supervise_date":"暂无","node_raw":"预约过户/复验税费","node_items":["预约过户","复验税费"],"current_stage_id":"核算税费","current_stage":"核算税费","stage_idx":9,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"预约过户","color":"green","stage_id":"过户","stage_idx":11},{"item":"复验税费","color":"gray","stage_id":"核算税费","stage_idx":10}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-5213","property":"香蜜新村东区-—","deal_date":"暂无","supervise_date":"暂无","node_raw":"核对楼款/结清物业","node_items":["核对楼款","结清物业"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":null,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"核对楼款","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"结清物业","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-5195","property":"华润银湖蓝山-8栋-16B","deal_date":"2026-05-05","supervise_date":"暂无","node_raw":"核对楼款","node_items":["核对楼款"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":80,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"核对楼款","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-3899","property":"特发小区-1栋-503","deal_date":"2026-05-11","supervise_date":"暂无","node_raw":"验算税费/网签/预约过户","node_items":["验算税费","网签","预约过户"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":74,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"廖志清","client_names":"张煜婕","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"验算税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-3744","property":"景发花园-景达1号楼-707","deal_date":"2026-05-10","supervise_date":"暂无","node_raw":"资金监管/商业贷款审批","node_items":["资金监管","商业贷款审批"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":75,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"周全","client_names":"喻学元","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"资金监管","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"商业贷款审批","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-3498","property":"金地龙城中央二期-9栋-2906","deal_date":"2026-05-10","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":75,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"刘东雪","client_names":"张暄妍","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-2469","property":"莲花北村-22栋-503","deal_date":"2026-05-07","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":78,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"朱建伟/赵烨","client_names":"曹志辉","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-1862","property":"天然居-E栋-501","deal_date":"2026-05-05","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":80,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"李黎","client_names":"李帅起","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-1929","property":"荔枝苑-5栋-507","deal_date":"2026-05-05","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":80,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"黄清银","client_names":"陈家敏","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-0436","property":"太子山庄-4栋-712","deal_date":"2026-05-01","supervise_date":"暂无","node_raw":"交房/结算尾款","node_items":["交房","结算尾款"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":84,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"张红莉/熊伟标","client_names":"徐韶华","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"交房","color":"green","stage_id":"过户","stage_idx":11},{"item":"结算尾款","color":"gray","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-0095","property":"阳光海景豪苑-B栋-24A","deal_date":"2026-05-01","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":84,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"石婕妤","client_names":"张小雷","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332604-8747","property":"鸿翠苑-B鸿盛阁-502","deal_date":"2026-04-21","supervise_date":"暂无","node_raw":"监管资金发放/商业贷款审批","node_items":["监管资金发放","商业贷款审批"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":94,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"张绍伟","client_names":"柯伟妹","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"监管资金发放","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"商业贷款审批","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332604-7536","property":"天健天骄-北庐C座-1605","deal_date":"2026-04-18","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":97,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"何文珍","client_names":"全琦","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332604-7130","property":"万科四季花城一期-牡丹苑C座-102","deal_date":"2026-04-18","supervise_date":"暂无","node_raw":"网签/资金监管/商业贷款","node_items":["网签","资金监管","商业贷款"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":97,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"周际","client_names":"汤欣培","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"网签","color":"green","stage_id":"网签","stage_idx":4},{"item":"资金监管","color":"gray","stage_id":"资金监管","stage_idx":5},{"item":"商业贷款","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332604-6808","property":"锦绣花园(南山)-滨海阁-4H","deal_date":"2026-04-18","supervise_date":"暂无","node_raw":"结算尾款","node_items":["结算尾款"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":97,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"陈新丽","client_names":"李远猛","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结算尾款","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332604-7048","property":"佳兆业悦峰花园-1栋B单元-3001","deal_date":"2026-04-17","supervise_date":"暂无","node_raw":"结算尾款","node_items":["结算尾款"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":98,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结算尾款","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M1112604-6379","property":"信息化测试香蜜湖一号-华旭阁-8B","deal_date":"2026-07-16","supervise_date":"暂无","node_raw":"产权查询(测试)","node_items":["产权查询(测试)"],"current_stage_id":"基本情况","current_stage":"基本情况","stage_idx":0,"elapsed_days":8,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"小丁","client_names":"王怡人","business_status":"测试单","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":true,"item_styles":[{"item":"产权查询(测试)","color":"green","stage_id":"基本情况","stage_idx":1}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332604-2143","property":"莲花北村-33栋-607","deal_date":"2026-04-14","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":101,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"程晨","client_names":"戴玥","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332604-5216","property":"天健天骄-南苑B2栋-4005","deal_date":"2026-04-14","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":101,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"王露薇","client_names":"叶皓然","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332603-9152","property":"天安高尔夫珑园-4栋-15A","deal_date":"2026-03-30","supervise_date":"暂无","node_raw":"监管资金发放/领取核税结果","node_items":["监管资金发放","领取核税结果"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":116,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"麦克达菲/程颖","client_names":"周洪伟","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"监管资金发放","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"领取核税结果","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332603-13873","property":"深业东岭-3号楼-2801","deal_date":"2026-03-28","supervise_date":"暂无","node_raw":"验算税费/录入网签/预约过户","node_items":["验算税费","录入网签","预约过户"],"current_stage_id":"核算税费","current_stage":"核算税费","stage_idx":9,"elapsed_days":118,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"朱洁玲","client_names":"季美英","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"验算税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"录入网签","color":"gray","stage_id":"","stage_idx":0},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332603-13264","property":"观山盛苑-1栋B座-2304","deal_date":"2026-03-27","supervise_date":"暂无","node_raw":"录入网签/资金监管/按揭","node_items":["录入网签","资金监管","按揭"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":119,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"叶七英","client_names":"李德亮","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"录入网签","color":"green","stage_id":"","stage_idx":0},{"item":"资金监管","color":"gray","stage_id":"资金监管","stage_idx":5},{"item":"按揭","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332603-11555","property":"深业新岸线-1栋B座-22D","deal_date":"2026-03-23","supervise_date":"暂无","node_raw":"结清物业费用","node_items":["结清物业费用"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":123,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"吴正浩","client_names":"李凤娥","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"结清物业费用","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332603-10705","property":"锦绣东方-锦涛阁-12A","deal_date":"2026-03-22","supervise_date":"暂无","node_raw":"交房/结清物业","node_items":["交房","结清物业"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":124,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"交房","color":"green","stage_id":"过户","stage_idx":11},{"item":"结清物业","color":"gray","stage_id":"","stage_idx":0}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332603-10595","property":"香珠花园-—","deal_date":"2026-03-22","supervise_date":"暂无","node_raw":"交房/过户水电气","node_items":["交房","过户水电气"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":124,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"交房","color":"green","stage_id":"过户","stage_idx":11},{"item":"过户水电气","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332603-9584","property":"—-—","deal_date":"2026-03-20","supervise_date":"暂无","node_raw":"交房","node_items":["交房"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":126,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"交房","color":"green","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332603-8882","property":"—-—","deal_date":"2026-03-20","supervise_date":"暂无","node_raw":"交房/过户水电气","node_items":["交房","过户水电气"],"current_stage_id":"过户","current_stage":"过户","stage_idx":10,"elapsed_days":126,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"交房","color":"green","stage_id":"过户","stage_idx":11},{"item":"过户水电气","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332603-7100","property":"—-—","deal_date":"2026-03-15","supervise_date":"暂无","node_raw":"产权查询","node_items":["产权查询"],"current_stage_id":"基本情况","current_stage":"基本情况","stage_idx":0,"elapsed_days":131,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"暂无","loan_staff":"暂无","cert_staff":"暂无","url":"","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":true,"item_styles":[{"item":"产权查询","color":"green","stage_id":"基本情况","stage_idx":1}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332602-4416","property":"—-—","deal_date":"2026-02-26","supervise_date":"暂无","node_raw":"结算尾款","node_items":["结算尾款"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":148,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"#N/A","loan_staff":"#N/A","cert_staff":"#N/A","url":"#N/A","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"#N/A","warnings":["#N/A"],"warn_types":[],"has_warning":true,"has_progress_warn":false,"item_styles":[{"item":"结算尾款","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332602-1569","property":"—-—","deal_date":"2026-02-06","supervise_date":"暂无","node_raw":"产权查询","node_items":["产权查询"],"current_stage_id":"基本情况","current_stage":"基本情况","stage_idx":0,"elapsed_days":168,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"#N/A","loan_staff":"#N/A","cert_staff":"#N/A","url":"#N/A","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"#N/A","warnings":["#N/A"],"warn_types":[],"has_warning":true,"has_progress_warn":true,"item_styles":[{"item":"产权查询","color":"green","stage_id":"基本情况","stage_idx":1}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-1036","property":"—-—","deal_date":"2026-07-20","supervise_date":"暂无","node_raw":"监管资金发放","node_items":["监管资金发放"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":4,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"刘伟杰","loan_staff":"仇玉璐","cert_staff":"王曼玉","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=7a704328-cf75-4d19-928c-7955b40a954c&gzdh=M3332607-1036","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"监管资金发放","color":"green","stage_id":"资金监管","stage_idx":5}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0911","property":"—-—","deal_date":"2026-07-20","supervise_date":"暂无","node_raw":"复验税费/网签/预约过户","node_items":["复验税费","网签","预约过户"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":4,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"胡小强","loan_staff":"仇玉璐","cert_staff":"罗莹","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=a488ec6e-ccee-4a89-8aef-0f579d281957&gzdh=M3332607-0911","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0310","property":"君汇新天-1栋E单元-1205","deal_date":"2026-07-06","supervise_date":"暂无","node_raw":"复验税费/购房资格核验/预约过户","node_items":["复验税费","购房资格核验","预约过户"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":18,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"张玉锦","loan_staff":"仇玉璐","cert_staff":"范定湟","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=30d49fe7-1ef8-4c12-82b6-4261992ea09d&gzdh=M3332607-0310","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"购房资格核验","color":"gray","stage_id":"核实信息","stage_idx":3},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0309","property":"君汇新天-1栋E单元-906","deal_date":"2026-07-06","supervise_date":"暂无","node_raw":"复验税费/购房资格核验/预约过户","node_items":["复验税费","购房资格核验","预约过户"],"current_stage_id":"核实信息","current_stage":"核实信息","stage_idx":2,"elapsed_days":18,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"张玉锦","loan_staff":"仇玉璐","cert_staff":"范定湟","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=7b9945ed-0b0a-4961-b2c7-2d20f5adad99&gzdh=M3332607-0309","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"购房资格核验","color":"gray","stage_id":"核实信息","stage_idx":3},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332607-0181","property":"海境界-3栋-10C","deal_date":"2026-07-05","supervise_date":"暂无","node_raw":"复验税费/网签/预约过户","node_items":["复验税费","网签","预约过户"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":19,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"兰静","loan_staff":"仇玉璐","cert_staff":"范定湟","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=d456c4bf-0953-4b3f-b93b-19aaa57d65bb&gzdh=M3332607-0181","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"无","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1581","property":"南海玫瑰花园-31栋-17B","deal_date":"2026-06-23","supervise_date":"暂无","node_raw":"复验税费/网签/预约过户","node_items":["复验税费","网签","预约过户"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":31,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"吴向明","loan_staff":"仇玉璐","cert_staff":"范定湟","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=fe8a351e-7345-4892-8db8-466688ecef5f&gzdh=M3332606-1581","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1525","property":"—-—","deal_date":"2026-06-22","supervise_date":"暂无","node_raw":"缴纳税费/预约取证","node_items":["缴纳税费","预约取证"],"current_stage_id":"权证","current_stage":"权证","stage_idx":8,"elapsed_days":32,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"罗婉榕","loan_staff":"仇玉璐","cert_staff":"李楚秀","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=6edca4bf-2b23-4fe7-8780-4abba7be63e5&gzdh=M3332606-1525","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"缴纳税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"预约取证","color":"gray","stage_id":"权证","stage_idx":9}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1393","property":"三湘海尚-A栋一单元-9AB","deal_date":"2026-06-21","supervise_date":"暂无","node_raw":"复验税费/网签/预约过户","node_items":["复验税费","网签","预约过户"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":33,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"王洪全","loan_staff":"仇玉璐","cert_staff":"范定湟","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=a4d6cdf3-56a5-45ba-b4ad-dd381ece7cf7&gzdh=M3332606-1393","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1391","property":"三湘海尚-A栋一单元-7AB","deal_date":"2026-06-21","supervise_date":"暂无","node_raw":"复验税费/网签/预约过户","node_items":["复验税费","网签","预约过户"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":33,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"王洪全","loan_staff":"仇玉璐","cert_staff":"范定湟","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=75c30b2b-f7c8-41be-ad56-75a83f44c9ef&gzdh=M3332606-1391","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-1372","property":"水湾1979-6栋-24C","deal_date":"2026-06-22","supervise_date":"暂无","node_raw":"监管资金发放/商业贷款审批/预约过户","node_items":["监管资金发放","商业贷款审批","预约过户"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":32,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"付凯","loan_staff":"仇玉璐","cert_staff":"范定湟","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=1254a62a-1851-485d-b76a-b78e2e26aabf&gzdh=M3332606-1372","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"监管资金发放","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"商业贷款审批","color":"gray","stage_id":"","stage_idx":0},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0883","property":"—-—","deal_date":"2026-06-16","supervise_date":"暂无","node_raw":"复验税费/网签/预约过户","node_items":["复验税费","网签","预约过户"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":38,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"胡小强","loan_staff":"仇玉璐","cert_staff":"陈观冰","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=136c017a-dc07-41e2-b3dc-9b9d534536bc&gzdh=M3332606-0883","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"暂无异常、风险","warnings":[],"warn_types":[],"has_warning":false,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332606-0108","property":"西岸观邸-1栋A座-905","deal_date":"2026-06-03","supervise_date":"暂无","node_raw":"复验税费/网签/预约过户","node_items":["复验税费","网签","预约过户"],"current_stage_id":"网签","current_stage":"网签","stage_idx":3,"elapsed_days":51,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"步万里","loan_staff":"仇玉璐","cert_staff":"马春雪","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=f1a6707e-deaa-4cd1-a4d1-adf2aadd3e19&gzdh=M3332606-0108","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"&#10;⚠️存在异常问题，请店长关注：&#10;1. 该房产持有不满 2 年，增值税较高，且需要交个税，计算税费时请留意。&#10;&#10;&#10;1. 该房产持有不满 2 年，增值税较高，且需要交个税，计算税费时请留意。&#10;&#10;","warnings":["&#10;⚠️存在异常问题，请店长关注：&#10;1. 该房产持有不满 2 年，增值税较高，且需要交个税，计算税费时请留意。&#10;&#10;&#10;1. 该房产持有不满 2 年，增值税较高，且需要交个税，计算税费时请留意。&#10;&#10;"],"warn_types":[],"has_warning":true,"has_progress_warn":false,"item_styles":[{"item":"复验税费","color":"green","stage_id":"核算税费","stage_idx":10},{"item":"网签","color":"gray","stage_id":"网签","stage_idx":4},{"item":"预约过户","color":"gray","stage_id":"过户","stage_idx":11}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false},
+  {"order_no":"M3332605-6234","property":"—-—","deal_date":"2026-05-29","supervise_date":"暂无","node_raw":"监管资金发放/缴纳税费","node_items":["监管资金发放","缴纳税费"],"current_stage_id":"资金监管","current_stage":"资金监管","stage_idx":4,"elapsed_days":56,"remind_transfer":0,"remind_loan":0,"remind_mortgage":0,"remind_fund":0,"remind_cert":0,"master":"吴向明","loan_staff":"仇玉璐","cert_staff":"范定湟","url":"https://i.leyoujia.com/lyj-menu/cj/CJ_NEW?showTab=true&submenu=CJCX#/info/inform?id=cfd60277-d939-45ab-91a2-984992e4a554&gzdh=M3332605-6234","cert_no":"暂无","pay_type":"暂无","land_years":"暂无","cert_label":"暂无","cert_code":"0","owner_names":"—","client_names":"—","business_status":"进行中","risk_info":"&#10;⚠️存在重要风险，请区总关注：&#10;1. 该房产土地使用年限剩余不足10年，接近使用期限，建议先申请延年限后交易，交易风险较高。&#10;&#10;","warnings":["&#10;⚠️存在重要风险，请区总关注：&#10;1. 该房产土地使用年限剩余不足10年，接近使用期限，建议先申请延年限后交易，交易风险较高。&#10;&#10;"],"warn_types":["land_years_risk","important_risk"],"has_warning":true,"has_progress_warn":false,"item_styles":[{"item":"监管资金发放","color":"green","stage_id":"资金监管","stage_idx":5},{"item":"缴纳税费","color":"gray","stage_id":"核算税费","stage_idx":10}],"_timeout_state":{},"timeout_warnings":[],"has_timeout_warn":false}
+];
+// ============================================================
+//  流程定义（仅大节点与描述）
+// ============================================================
+const FLOW_STAGES = [{"id": "产权查询", "label": "产权查询", "desc": "自动查档，识别满二满五、土地年限等"}, {"id": "基本情况", "label": "基本情况", "desc": "核查资料、了解公证需求、联系双方"}, {"id": "公证委托", "label": "公证委托", "desc": "买卖公证/代理人公证（如有港澳台外籍人士）"}, {"id": "核实信息", "label": "核实信息", "desc": "复验税费、预约过户前准备"}, {"id": "网签", "label": "网签", "desc": "录入网签合同、购房资格核验备案"}, {"id": "资金监管", "label": "资金监管", "desc": "买卖双方携资料至银行办理楼款监管（约1天）"}, {"id": "按揭贷款", "label": "按揭贷款", "desc": "贷款申请→审批→发放（约1-2周）"}, {"id": "赎楼", "label": "赎楼", "desc": "有抵押房产：担保赎楼/业主自赎流程"}, {"id": "资料交接", "label": "资料交接", "desc": "贷款审批通过后，移交资料至权证部"}, {"id": "权证", "label": "权证", "desc": "递件过户、缴税取新证、抵押登记"}, {"id": "核对楼款", "label": "核对楼款", "desc": "自动编辑核对楼款信息"}, {"id": "交房", "label": "交房", "desc": "结清物业、过户水电气、交房结款"}];
+const STAGE_ORDER = {"产权查询": 0, "基本情况": 1, "公证委托": 2, "核实信息": 3, "网签": 4, "资金监管": 5, "按揭贷款": 6, "赎楼": 7, "资料交接": 8, "权证": 9, "核对楼款": 10, "交房": 11};
+const TOTAL_STAGES = FLOW_STAGES.length;
+
+// ============================================================
+//  大节点 → 子节点（item）规则表
+//  ──────────────────────────────────────────────────────────
+//  数据源：C:/Users/PHILIPS/Desktop/网签记录.xlsx
+//    · A 列 = 大节点（业务名），A 空继承上一行
+//    · B 列 = 子节点（item），含 '、' / '，' / ',' 分隔，已自动拆分
+//  大节点业务名 → FLOW_STAGES.id 的归一化映射见 normalizeStageName()。
+//
+//  命中规则（统一）：单子 r 属于大节点 stageId
+//    ⇔  r.current_stage_id === stageId
+//     OR r.node_items 中存在 itemKw，满足 itemKw 与本大节点规则中任一 item 匹配
+//
+//  大节点汇总 = 在 stageId 下命中（去重后）的成交单数 + 异常数
+//  子项聚合   = 在 stageId 下命中、且 node_items 命中该 item 的成交单数
+//  （不在子项字典里硬编码 cnt/warn，所有数字都从 RAW_DATA 实时算出）
+// ============================================================
+const STAGE_ITEM_RULES = {"基本情况": ["检查成交资料", "联系交易双方", "是否需要办理代理人公证", "是否需要赎楼公证（带押过户）", "推荐银行"], "公证委托": ["买卖合同公证", "赎楼公证委托", "赎楼公证书", "代理人公证委托", "代理人公证书"], "核实信息": ["复验税费"], "网签": ["录入网签合同", "购房资格核验", "网签合同备案"], "资金监管": ["资金监管", "资金监管发放"], "按揭贷款": ["公积金贷款申请", "公积金贷款审批", "公积金贷款发放", "商业贷款申请", "商业贷款审批", "商业贷款发放"], "赎楼": ["确定担保公司", "赎楼申请", "提前还款申请", "赎楼公司审批", "还款赎楼", "取旧证", "注销抵押", "归还赎楼款"], "资料交接": ["按揭经理录入", "权证部接收"], "权证": ["预约过户前准备", "递件过户", "缴纳税费", "预约取证", "领取新证", "办理抵押登记"], "核对楼款": ["核对楼款"], "交房": ["结清物业费用", "过户水电气有线电视", "交房", "结算尾款"]};
+
+// Excel 大节点业务名 → FLOW_STAGES.id 的归一化
+const STAGE_NAME_NORM = {"产权查询": "产权查询", "基本情况核实": "基本情况", "基本情况": "基本情况", "公证委托（根据基本情况节点）": "公证委托", "公证委托": "公证委托", "复验税费": "核实信息", "核实信息": "核实信息", "网签": "网签", "资金监管": "资金监管", "按揭（商贷、公积金贷、组合贷）": "按揭贷款", "按揭贷款": "按揭贷款", "赎楼": "赎楼", "资料交接": "资料交接", "权证": "权证", "核对楼款": "核对楼款", "交房": "交房"};
+function normalizeStageName(name) { return STAGE_NAME_NORM[name] || name; }
+
+// Item 精确匹配：RAW_DATA 的 item 必须与规则 item 完全相等才匹配
+//  2025-06-23 修复：去掉 substring 包含逻辑，避免 "资金监管" 错误匹配 "资金监管发放"
+function itemMatches(ruleItem, itemKw) {
+  if (!ruleItem || !itemKw) return false;
+  return ruleItem === itemKw;
+}
+
+// 返回该单子在本大节点规则下命中的所有 item（去重后）
+//  命中 = node_items 中存在 item 与规则中任一 item 完全相等（itemMatches）
+function rowHitItems(row, ruleItems) {
+  const nodeItems = row.node_items || [];
+  const hit = new Set();
+  nodeItems.forEach(it => {
+    ruleItems.forEach(r => {
+      if (itemMatches(r, it)) hit.add(it);   // 命中：记录 RAW_DATA 真实 item 名
+    });
+  });
+  return hit;
+}
+
+// ============================================================
+//  归属判定（多归属 + order_no 去重）
+//  ──────────────────────────────────────────────────────────
+//  一单可同时归属多个大节点（多归属），但汇总严格按 order_no 去重：
+//    · 大节点汇总  = 该大节点下命中过的成交单（去重 order_no）
+//    · 子项汇总    = 在大节点下命中、且 node_items 命中该规则 item 的成交单（去重 order_no）
+//    · 不变式     = 大节点汇总  ≡  子项 order_no 并集去重
+//
+//  命中（多归属）：单子 r 属于大节点 stageId
+//    ⇔  r.node_items 存在 itemKw，与 STAGE_ITEM_RULES[stageId] 规则中任一 item 匹配
+//  （不依赖 current_stage_id / item_styles，避免"current 命中但无规则子项"的孤立单
+//    导致大节点汇总 > 子项之和。）
+// ============================================================
+function belongsToStage(row, stageId) {
+  const rules = STAGE_ITEM_RULES[stageId];
+  if (!rules) return false;
+  const nodeItems = row.node_items || [];
+  for (let i = 0; i < nodeItems.length; i++) {
+    for (let j = 0; j < rules.length; j++) {
+      if (itemMatches(rules[j], nodeItems[i])) return true;
+    }
+  }
+  return false;
+}
+
+// ============================================================
+//  核心逻辑：从 RAW_DATA 自动聚合每个大节点的统计 + 子项
+//  ──────────────────────────────────────────────────────────
+//  命中规则（统一）：单子 r 属于大节点 stageId
+//    ⇔  r.current_stage_id === stageId
+//     OR r.node_items 中存在 item，与 STAGE_ITEM_RULES[stageId] 规则中任一 item 匹配
+//
+//  大节点汇总 = 在 stageId 下命中（去重后）的成交单数 + 异常数
+//  子项聚合   = 在 stageId 下命中、且 node_items 命中该规则 item 的成交单数
+//  （所有数字都从 RAW_DATA 实时算出，不再硬编码）
+// ============================================================
+// belongsToStage / rowHitItems / itemMatches 见上方 STAGE_ITEM_RULES 区域
+
+// 返回 [{ stageId, total, warn, subItems:[{item, cnt, warn, ruleItem}] }]
+// 按 FLOW_STAGES 顺序输出；subItems 按 STAGE_ITEM_RULES 中规则的顺序稳定展示
+//
+// 关键去重规则（多归属 + order_no 去重）：
+//   · 大节点 total  = 命中该 stageId 的成交单数（Map<order_no> 去重）
+//   · 大节点 warn   = 命中且 has_warning 的单子数（按 order_no 去重）
+//   · 子项 cnt      = 命中、且 node_items 命中该规则 item 的成交单数（按 order_no 去重）
+//   · 子项 warn     = 命中、且 has_warning、且 node_items 命中该规则 item 的成交单数（按 order_no 去重）
+//   不变式：total = 子项 order_no 并集去重大小
+function buildStageStats() {
+  const out = [];
+  FLOW_STAGES.forEach(s => {
+    const stageId  = s.id;
+    const rules    = STAGE_ITEM_RULES[stageId] || [];
+    // 命中该大节点的所有成交单（按 order_no 去重：同一单可能被多次命中）
+    const seenOrder = new Map();
+    const stageRows = [];
+    for (let i = 0; i < RAW_DATA.length; i++) {
+      const r = RAW_DATA[i];
+      if (belongsToStage(r, stageId) && !seenOrder.has(r.order_no)) {
+        seenOrder.set(r.order_no, true);
+        stageRows.push(r);
+      }
+    }
+    const total = stageRows.length;
+    const warn  = stageRows.filter(r => r.has_warning).length;
+    // 子项聚合：按 STAGE_ITEM_RULES 中的规则顺序扫描
+    // 对每条规则 itemRule，统计 node_items 中能匹配 itemRule 的成交单数（按 order_no 去重）
+    const subItems = rules.map(ruleItem => {
+      const cntSet  = new Set();
+      const warnSet = new Set();
+      stageRows.forEach(r => {
+        const nodeItems = r.node_items || [];
+        let matched = false;
+        for (let i = 0; i < nodeItems.length; i++) {
+          if (itemMatches(ruleItem, nodeItems[i])) { matched = true; break; }
+        }
+        if (matched) {
+          cntSet.add(r.order_no);
+          if (r.has_warning) warnSet.add(r.order_no);
+        }
+      });
+      return { item: ruleItem, cnt: cntSet.size, warn: warnSet.size };
+    }).filter(it => it.cnt > 0); // 只展示"实际有数据"的子项（避免空子项卡片）
+    out.push({ stageId, total, warn, subItems });
+  });
+  return out;
+}
+
+// 返回 [{ stageId, total, warn, subItems:[{item, cnt, warn}] }]
+// 按 FLOW_STAGES 顺序输出；subItems 按 cnt 降序稳定展示
+//
+// 关键去重规则：
+//   · 大节点 total  = 命中该 stageId 的成交单数（每单一记）
+//   · 大节点 warn   = 命中且 has_warning 的单子数
+//   · 子项 cnt      = 命中、且 node_items 命中该规则 item 的成交单数
+//   · 子项 warn     = 命中、且 has_warning、且 node_items 命中该规则 item 的成交单数
+//
+// 大节点 / 子项 命中判定（供筛选使用）
+function rowMatchesGroup(row, stageId) {
+  return belongsToStage(row, stageId);
+}
+function rowMatchesSub(row, stageId, itemKw) {
+  if (!belongsToStage(row, stageId)) return false;
+  const rules = STAGE_ITEM_RULES[stageId] || [];
+  const nodeItems = row.node_items || [];
+  for (let i = 0; i < nodeItems.length; i++) {
+    for (let j = 0; j < rules.length; j++) {
+      if (itemMatches(rules[j], nodeItems[i]) && rules[j] === itemKw) return true;
+    }
+  }
+  return false;
+}
+
+// ============================================================
+//  列定义
+// ============================================================
+const ALL_COLS = [
+  { id:'order_no',      label:'成交单号',     def:true  },
+  { id:'property',      label:'物业地址',     def:false },
+  { id:'deal_date',     label:'成交日期',     def:true },
+  { id:'supervise_date',label:'监管日期',     def:true  },
+  { id:'elapsed',       label:'成交天数',     def:false  },
+  { id:'loan_staff',    label:'按揭专员',     def:true  },
+  { id:'cert_staff',    label:'权证专员',     def:true  },
+  { id:'master',        label:'主单人',       def:true },
+  { id:'owner_client',  label:'业主/客户',     def:true  },
+  { id:'land_years',    label:'剩余年限',     def:true  },
+  { id:'cert_label',    label:'产权年限',     def:true  },
+  { id:'cert_status',   label:'产权状态',     def:true  },
+  { id:'commission_status', label:'佣金是否收齐', def:false },
+  { id:'loan_release',  label:'等候银行放款',  def:false },
+  { id:'warning_summary',label:'预警汇总',   def:true  },
+];
+
+// ============================================================
+//  全局状态
+// ============================================================
+let gFilter    = 'all';
+let gSearch    = '';
+let gGroupMode = false;
+let gSortByDate = true;  // 按监管日期排序（由近到远），默认开启
+let currentStageFilter    = null;  // 大节点泳道筛选
+let currentStageWarnOnly  = false; // 当前节点下只看异常
+let subNodeFilter         = null;  // 子事项关键词筛选
+let colVis     = {};
+
+function initColVis() {
+  ALL_COLS.forEach(c => { colVis[c.id] = c.def; });
+}
+
+// ============================================================
+//  等候银行放款判定
+//  ──────────────────────────────────────────────────────────
+//  ① "资金监管" + "抵押登记" 完成，"发放资金监管" 未完成 → 待放款
+//  ② "商业贷款审批" + "抵押登记" 完成，"发放商业贷款" 未完成 → 待放款
+//  ③ "公积金贷款审批" + "抵押登记" 完成，"发放公积金贷款" 未完成 → 待放款
+//  ④ "发放资金监管"/"发放商业贷款"/"发放公积金贷款" 存在且都完成 → 已放款
+//  ⑤ 无"抵押登记"时替换为"领取新证"或"缴税取新证"
+//     未达到"资金监管"/"商业贷款审批"/"公积金贷款审批" → 暂无
+// ============================================================
+
+// 检查 node_items 中是否存在某 item 且已完成（item_styles 中 color=green）
+function isItemDone(row, itemName) {
+  const items = row.node_items || [];
+  if (!items.includes(itemName)) return false;
+  const styles = row.item_styles || [];
+  for (let i = 0; i < styles.length; i++) {
+    if (styles[i].item === itemName) {
+      return styles[i].color === 'green';
+    }
+  }
+  return false;
+}
+
+// 检查 node_items 中是否存在某 item（不管是否完成）
+function hasItem(row, itemName) {
+  return (row.node_items || []).includes(itemName);
+}
+
+// 检查"抵押登记"或其替代节点是否完成
+function isMortgageOrNewCertDone(row) {
+  if (hasItem(row, '办理抵押登记'))   return isItemDone(row, '办理抵押登记');
+  if (hasItem(row, '领取新证'))       return isItemDone(row, '领取新证');
+  if (hasItem(row, '缴税取新证'))     return isItemDone(row, '缴税取新证');
+  return false;
+}
+
+function calcLoanRelease(row) {
+  const mortgageDone = isMortgageOrNewCertDone(row);
+
+  // 三个放款节点
+  const releaseItems = ['发放资金监管', '发放商业贷款', '发放公积金贷款'];
+  // 对应的前置审批节点
+  const preRequisites = [
+    { pre: '资金监管',       release: '发放资金监管' },
+    { pre: '商业贷款审批',   release: '发放商业贷款' },
+    { pre: '公积金贷款审批', release: '发放公积金贷款' },
+  ];
+
+  // ④ 检查是否所有存在的放款节点都已完成 → 已放款
+  let hasAnyRelease = false;
+  let allReleaseDone = true;
+  for (let i = 0; i < releaseItems.length; i++) {
+    if (hasItem(row, releaseItems[i])) {
+      hasAnyRelease = true;
+      if (!isItemDone(row, releaseItems[i])) {
+        allReleaseDone = false;
+      }
+    }
+  }
+  if (hasAnyRelease && allReleaseDone) return '已放款';
+
+  // ①②③ 检查前置审批 + 抵押登记完成，但放款未完成 → 待放款
+  for (let i = 0; i < preRequisites.length; i++) {
+    const pre = preRequisites[i];
+    if (hasItem(row, pre.pre) && isItemDone(row, pre.pre) && mortgageDone) {
+      if (hasItem(row, pre.release) && !isItemDone(row, pre.release)) {
+        return '待放款';
+      }
+      // 如果放款节点不存在但前置+抵押都完成了，也算待放款
+      if (!hasItem(row, pre.release)) {
+        return '待放款';
+      }
+    }
+  }
+
+  return '暂无';
+}
+
+// ============================================================
+//  辅助渲染
+// ============================================================
+function renderCell(colId, row) {
+  switch(colId) {
+    case 'order_no':
+      return row.url
+        ? `<a href="${row.url}" target="_blank" class="order-link">${row.order_no}</a>`
+        : `<span class="order-link">${row.order_no}</span>`;
+    case 'elapsed':
+      const d = row.elapsed_days;
+      if (d === null || d === undefined) return '—';
+      const cls = row.warn_types && row.warn_types.includes('slow') ? 'slow' : '';
+      return `<span class="elapsed-badge ${cls}">${d} 天</span>`;
+    case 'current_stage':
+      if (!row.current_stage) return '<span class="tag tag-gray">未识别</span>';
+      // 当前节点列只显示"当前归类节点"（最早阶段）
+      const hasProgWarn = row.has_progress_warn;
+      const baseCls = hasProgWarn ? 'tag-danger' : 'tag-ok';
+      const tip = hasProgWarn ? '该节点下存在进度类预警' : '当前归类节点（流程最早事项）';
+      return `<span class="tag ${baseCls}" title="${tip}">${row.current_stage}</span>`;
+    case 'land_years':
+      const ly = parseInt(row.land_years);
+      if (isNaN(ly)) return '—';
+      if (ly < 31) return `<span class="tag tag-danger">⚠️ ${ly} 年</span>`;
+      if (ly < 35) return `<span class="tag tag-warn">${ly} 年</span>`;
+      return `${ly} 年`;
+    case 'cert_label':
+      if (row.cert_label === '不满两年')       return '<span class="tag tag-lt2">🔴 不满两年</span>';
+      if (row.cert_label === '满两年不满五年') return '<span class="tag tag-lt5">🟠 满二不满五</span>';
+      return '<span class="tag tag-ok">暂无</span>';
+    case 'cert_status':
+      return '<span class="tag tag-gray">暂无</span>';
+    case 'owner_client':
+      if (row.owner_names || row.client_names) {
+        const owners  = row.owner_names  || '—';
+        const clients = row.client_names || '—';
+        return `<span style="font-size:11px;">${owners} / ${clients}</span>`;
+      }
+      return '<span class="tag tag-gray">暂无</span>';
+    case 'commission_status':
+      if (row.commission_unpaid !== undefined && row.commission_unpaid !== null) {
+        if (row.commission_unpaid > 0) {
+          return `<span class="tag tag-danger">未收齐</span>`;
+        }
+        return `<span class="tag tag-ok">收齐</span>`;
+      }
+      return '<span class="tag tag-gray">暂无</span>';
+    case 'loan_release':
+      const lr = calcLoanRelease(row);
+      if (lr === '待放款')   return '<span class="tag tag-warn">⏳ 待放款</span>';
+      if (lr === '已放款')   return '<span class="tag tag-ok">✅ 已放款</span>';
+      return '<span class="tag tag-gray">暂无</span>';
+    case 'warning_summary':
+      const ws2 = row.warnings || [];
+      const tw = row.timeout_warnings || [];
+      const timeouts = tw.map(t => {
+        const owners = (t.owner || []).join('/') || '未指定';
+        return `<li class="warn-timeout">
+          <span class="warn-rule-id">${t.rule_id}</span>
+          <b>${t.label}</b>：${t.from_stage} 完成于 ${t.completed_at}，
+          <span class="warn-overdue">已超时 ${t.days_elapsed} 天</span>
+          （阈值 ${t.threshold} 天，基准均值 ${t.baseline_avg} 天）<br>
+          <span class="warn-owner">👤 责任人：${owners}</span>
+          <span class="warn-resolve">解除条件：${t.to_stage} 节点更新</span>
+        </li>`;
+      }).join('');
+      if (!ws2.length && !tw.length) return '<span class="tag tag-ok">✅ 正常</span>';
+      const baseList = ws2.map(w=>`<li>${w}</li>`).join('');
+      return `<ul class="warn-list">${baseList}${timeouts}</ul>`;
+    default:
+      const v = row[colId];
+      return (v !== null && v !== undefined && v !== '') ? v : '—';
+  }
+}
+
+// ============================================================
+//  筛选
+// ============================================================
+function getFiltered() {
+  let data = RAW_DATA;
+  if (gFilter === 'warn')   data = data.filter(r => r.has_warning);
+  else if (gFilter === 'progress') {
+    if (currentStageFilter) {
+      // 节点作用域：该大节点下命中 + 有任一节点异常（进度/偏慢/超时）
+      data = data.filter(r => rowMatchesGroup(r, currentStageFilter) && (r.has_progress_warn || (r.warn_types && r.warn_types.includes('slow')) || r.has_timeout_warn));
+    } else {
+      // 全局：所有节点异常单（进度类 + 偏慢 + 超时）
+      data = data.filter(r => r.has_progress_warn || (r.warn_types && r.warn_types.includes('slow')) || r.has_timeout_warn);
+    }
+  }
+  else if (gFilter === 'lt2') data = data.filter(r => r.cert_code === '2');
+  else if (gFilter === 'lt5') data = data.filter(r => r.cert_code === '3');
+  else if (gFilter === 'land') data = data.filter(r => r.warn_types && r.warn_types.includes('land'));
+  // 子节点筛选（item 严格匹配 + stageId 锁定 + 大节点命中）
+  if (subNodeFilter) {
+    const kw = subNodeFilter.kw;
+    const sid = subNodeFilter.stageId;
+    const warnOnly = subNodeFilter.warnOnly || false;
+    data = data.filter(r => rowMatchesSub(r, sid, kw));
+    if (warnOnly) {
+      data = data.filter(r => r.has_warning);
+    }
+  } else if (currentStageFilter) {
+    // 大节点筛选 = 在该大节点规则下命中（多归属 + order_no 去重）
+    data = data.filter(r => rowMatchesGroup(r, currentStageFilter));
+    if (currentStageWarnOnly) {
+      data = data.filter(r => r.has_warning);
+    }
+  }
+  if (gSearch) {
+    const q = gSearch.toLowerCase();
+    data = data.filter(r =>
+      (r.order_no||'').toLowerCase().includes(q) ||
+      (r.property||'').toLowerCase().includes(q) ||
+      (r.loan_staff||'').toLowerCase().includes(q) ||
+      (r.cert_staff||'').toLowerCase().includes(q) ||
+      (r.master||'').toLowerCase().includes(q) ||
+      (r.owner_names||'').toLowerCase().includes(q) ||
+      (r.client_names||'').toLowerCase().includes(q)
+    );
+  }
+  // 按 order_no 去重：RAW_DATA 中可能有同 order_no 多次出现（一个成交单的多个快照/事项）
+  // 这里用 Map 保留首次出现的 row
+  const seenOrder = new Map();
+  const dedup = [];
+  for (let i = 0; i < data.length; i++) {
+    const k = data[i].order_no;
+    if (!seenOrder.has(k)) { seenOrder.set(k, true); dedup.push(data[i]); }
+  }
+  // 按监管日期排序（由近到远 = 日期升序，近的在前）
+  if (gSortByDate) {
+    dedup.sort((a, b) => {
+      const da = a.supervise_date || '9999-99-99';
+      const db = b.supervise_date || '9999-99-99';
+      return da.localeCompare(db);
+    });
+  }
+  return dedup;
+}
+
+// ============================================================
+//  渲染统计卡片
+// ============================================================
+function renderStats() {
+  const total     = RAW_DATA.length;
+  const warnCnt   = RAW_DATA.filter(r => r.has_warning).length;
+  const procWarn  = RAW_DATA.filter(r => r.warn_types && ['transfer','loan','mortgage','fund','cert'].some(t => r.warn_types.includes(t))).length;
+  const landWarn  = RAW_DATA.filter(r => r.warn_types && r.warn_types.includes('land')).length;
+  const slowWarn  = RAW_DATA.filter(r => r.warn_types && r.warn_types.includes('slow')).length;
+  const lt2       = RAW_DATA.filter(r => r.cert_code === '2').length;
+  const lt5       = RAW_DATA.filter(r => r.cert_code === '3').length;
+
+  const allWarn = procWarn + slowWarn + RAW_DATA.filter(r => r.has_timeout_warn).length;
+  const cards = [
+    { label:'汇总',       value:total,    icon:'📊', filter:'all'  },
+    { label:'异常单',     value:warnCnt,  icon:'⚠️', filter:'warn' },
+    { label:'节点异常',   value:allWarn,  icon:'🚦', filter:'progress' },
+    { label:'土地年限预警', value:landWarn,icon:'🌍', filter:'land' },
+    { label:'不满两年',   value:lt2,      icon:'🔴', filter:'lt2'  },
+    { label:'满二不满五', value:lt5,      icon:'🟠', filter:'lt5'  },
+  ];
+  const el = document.getElementById('statsRow');
+  el.innerHTML = cards.map(c =>
+    `<div class="stat-card" data-filter="${c.filter}">
+      <div><h4>${c.label}</h4><div class="stat-num">${c.value}</div></div>
+      <div class="stat-icon">${c.icon}</div>
+    </div>`
+  ).join('');
+  el.querySelectorAll('.stat-card').forEach(card => {
+    card.addEventListener('click', () => {
+      gFilter = card.dataset.filter;
+      // 点击统计卡片时清除节点/子节点筛选
+      currentStageFilter = null;
+      currentStageWarnOnly = false;
+      subNodeFilter = null;
+      syncBtns();
+      renderSwimlane();
+      refresh();
+    });
+  });
+}
+
+// ============================================================
+//  渲染泳道（大节点卡片常显 + 内嵌小节点卡片）
+//  ──────────────────────────────────────────────────────────
+//  数据全部从 RAW_DATA 实时聚合：
+//    · 大节点 cnt/warn  = 该大节点规则下命中（多归属 + order_no 去重）的成交单数 / 异常数
+//    · 小节点 cnt/warn  = 在该大节点下、node_items 命中该规则 item 的成交单数（order_no 去重）
+//    · 点击大节点 = rowMatchesGroup 命中（多归属 + order_no 去重）
+//    · 点击小节点 = rowMatchesSub（+ item 精确匹配 + 大节点命中）
+//    · 不变式     = 大节点 cnt  ≡  子项 order_no 并集去重
+// ============================================================
+let STAGE_STATS_CACHE = []; // 缓存 buildStageStats() 结果（每次刷新重建）
+
+function renderSwimlane() {
+  const el = document.getElementById('swimlane');
+  STAGE_STATS_CACHE = buildStageStats();   // 实时聚合
+  let html = '';
+  FLOW_STAGES.forEach((s, idx) => {
+    const stageId  = s.id;
+    const stats    = STAGE_STATS_CACHE[idx];
+    const cnt      = stats.total;
+    const warnCnt  = stats.warn;
+    const subItems = stats.subItems;
+    const esc      = stageId.replace(/'/g, "\'");
+    // 选中态：仅大节点筛选（无子项/无仅异常）→ 蓝边
+    const isGroupSelected = (currentStageFilter === stageId && !subNodeFilter);
+    // 标题色
+    let hdrCls = 'group-header';
+    if (warnCnt > 0) hdrCls += ' warn-bg';
+    else if (cnt > 0) hdrCls += ' normal-bg';
+    // 子项渲染
+    let subHtml = '';
+    if (subItems.length > 0) {
+      subItems.forEach((it, subIdx) => {
+        const kw   = it.item;
+        const subCnt  = it.cnt;
+        const subWarn = it.warn;
+        const kwEsc = kw.replace(/'/g, "\'");
+        const isSubSel   = subNodeFilter && subNodeFilter.stageId === stageId && subNodeFilter.kw === kw && !subNodeFilter.warnOnly;
+        const isSubWarn  = subNodeFilter && subNodeFilter.stageId === stageId && subNodeFilter.kw === kw &&  subNodeFilter.warnOnly;
+        // 小节点颜色：异常=红边红底、有数据=普通、选中=蓝边蓝底
+        let subCls = 'sub-lane';
+        if (isSubSel || isSubWarn) subCls += ' selected-sub';
+        else if (subWarn > 0) subCls += ' sub-warn';
+        // 标题完整显示（不截断）
+        subHtml += `<div class="${subCls}">
+          <div class="sub-header" onclick="filterBySubNode('${esc}','${kwEsc}',false)" title="点击只看：${kw}">
+            <span class="sub-name">${kw}</span>
+          </div>
+          <div class="sub-stats">
+            <span class="${isSubSel ? 'active-stat' : ''}" onclick="filterBySubNode('${esc}','${kwEsc}',false)" title="全部：${subCnt} 单">📋 ${subCnt}</span>
+            <span class="${isSubWarn ? 'warn-active' : (subWarn > 0 ? 'warn-stat' : 'empty-stat')}" onclick="filterBySubNode('${esc}','${kwEsc}',true)" title="异常：${subWarn} 单">⚠ ${subWarn}</span>
+          </div>
+        </div>`;
+        // 小节点之间插入小箭头（最后一个不插）
+        if (subIdx < subItems.length - 1) {
+          subHtml += `<div class="sub-arrow" data-empty="${subCnt === 0 ? 1 : 0}" title="下一项"></div>`;
+        }
+      });
+    } else {
+      subHtml = '<div style="font-size:10.5px;color:#9ca3af;text-align:center;padding:8px 0;">暂无子项数据</div>';
+    }
+
+    html += `<div class="lane-group${isGroupSelected ? ' lane-selected' : ''}${warnCnt > 0 ? ' lane-warn' : ''}">
+      <div class="${hdrCls}" onclick="filterByGroup('${esc}')" title="点击只看：${s.label}（共 ${cnt} 单 / 异常 ${warnCnt}）">
+        ${s.label}
+        <span class="sub">${cnt} / 异常 ${warnCnt}</span>
+      </div>
+      <div class="sub-lanes">${subHtml}</div>
+    </div>`;
+    // 大节点之间插入箭头连接器（最后一个不插）
+    if (idx < FLOW_STAGES.length - 1) {
+      html += `<div class="lane-arrow" title="下一节点：${FLOW_STAGES[idx+1].label}">▶</div>`;
+    }
+  });
+  el.innerHTML = html;
+}
+
+// 点击大节点卡片 → 筛选该大节点规则下命中的所有成交单（多归属 + order_no 去重）
+function filterByGroup(stageId) {
+  if (currentStageFilter === stageId && !subNodeFilter) {
+    // 再次点击 → 取消
+    currentStageFilter = null;
+    currentStageWarnOnly = false;
+    subNodeFilter = null;
+  } else {
+    currentStageFilter = stageId;
+    currentStageWarnOnly = false;
+    subNodeFilter = null;
+    gFilter = 'all';
+  }
+  syncBtns();
+  renderSwimlane();
+  refresh();
+}
+
+// 点击子项 → 按子项精确匹配（item + stageId）
+function filterBySubNode(stageId, kw, warnOnly) {
+  if (subNodeFilter && subNodeFilter.stageId === stageId && subNodeFilter.kw === kw && subNodeFilter.warnOnly === warnOnly) {
+    // 再次点击 → 取消
+    subNodeFilter = null;
+    currentStageFilter = null;
+    currentStageWarnOnly = false;
+  } else {
+    subNodeFilter = { stageId, kw, warnOnly };
+    currentStageFilter = stageId;
+    currentStageWarnOnly = false;
+    gFilter = warnOnly ? 'warn' : 'all';
+  }
+  syncBtns();
+  renderSwimlane();
+  refresh();
+}
+
+// ============================================================
+//  渲染表格
+// ============================================================
+function renderTable(data) {
+  const wrap = document.getElementById('tableWrap');
+  if (!data.length) {
+    wrap.innerHTML = '<div class="empty-state">📭 暂无匹配数据</div>';
+    return;
+  }
+  const visCols = ALL_COLS.filter(c => colVis[c.id] !== false);
+
+  if (gGroupMode) {
+    // 按节点分组
+    let html = '';
+    const groups = {};
+    data.forEach(r => {
+      const k = r.current_stage_id || '未识别';
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(r);
+    });
+    // 按流程顺序排
+    const orderedKeys = [...FLOW_STAGES.map(s => s.id), '未识别'].filter(k => groups[k]);
+    orderedKeys.forEach(stageId => {
+      const rows   = groups[stageId];
+      const stage  = FLOW_STAGES.find(s => s.id === stageId);
+      const lbl    = stage ? stage.label : '未识别';
+      const wCnt   = rows.filter(r => r.has_warning).length;
+      html += `<div class="section-title" style="margin-top:16px;">
+        ${lbl} <span class="tag tag-gray">${rows.length} 单</span>
+        ${wCnt > 0 ? `<span class="tag tag-danger">${wCnt} 异常</span>` : ''}
+        ${stage ? `<span style="font-size:11px;color:#9ca3af;font-weight:400;">${stage.desc}</span>` : ''}
+      </div>`;
+      html += renderTableHtml(rows, visCols, true);
+    });
+    wrap.innerHTML = html;
+  } else {
+    wrap.innerHTML = renderTableHtml(data, visCols, false);
+  }
+}
+
+function renderTableHtml(data, visCols, isGroup) {
+  let html = `<table class="data-table"><thead><tr>`;
+  visCols.forEach(c => { html += `<th>${c.label}</th>`; });
+  html += `</tr></thead><tbody>`;
+  data.forEach(row => {
+    const trCls = row.has_warning ? 'warn-row' : '';
+    html += `<tr class="${trCls}">`;
+    visCols.forEach(c => {
+      html += `<td>${renderCell(c.id, row)}</td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+  return html;
+}
+
+// ============================================================
+//  列控制面板
+// ============================================================
+function buildColPanel() {
+  const panel = document.getElementById('colPanel');
+  panel.innerHTML = '<span style="font-size:12px;font-weight:700;color:#374151;background:#f1f5f9;padding:3px 10px;border-radius:20px;">列控制</span>';
+  ALL_COLS.forEach(c => {
+    const tag = document.createElement('span');
+    tag.className = 'col-tag' + (colVis[c.id] === false ? ' off' : '');
+    tag.innerText = c.label;
+    tag.onclick = () => {
+      colVis[c.id] = colVis[c.id] === false ? true : false;
+      buildColPanel();
+      refresh();
+    };
+    panel.appendChild(tag);
+  });
+  const reset = document.createElement('span');
+  reset.className = 'col-tag';
+  reset.innerText = '↺ 重置';
+  reset.style.marginLeft = 'auto';
+  reset.onclick = () => { initColVis(); buildColPanel(); refresh(); };
+  panel.appendChild(reset);
+}
+
+function toggleColPanel() {
+  const p = document.getElementById('colPanel');
+  p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
+}
+
+function toggleGroupMode() {
+  gGroupMode = !gGroupMode;
+  document.getElementById('btnGroup').classList.toggle('active', gGroupMode);
+  refresh();
+}
+
+function toggleSortDate() {
+  gSortByDate = !gSortByDate;
+  document.getElementById('btnSortDate').classList.toggle('active', gSortByDate);
+  refresh();
+}
+
+// ============================================================
+//  汇总条 + 按钮同步
+// ============================================================
+function renderSummary(data) {
+  const labelMap = {
+    all:'全部订单', warn:'异常单', progress:'进度异常', lt2:'不满两年', lt5:'满二不满五',
+    land:'土地年限预警', slow:'节点偏慢', timeout:'节点超时'
+  };
+  let stageTag = '';
+  if (subNodeFilter) {
+    const tagStyle = subNodeFilter.warnOnly ? 'background:#fee2e2;color:#991b1b;margin-left:6px;' : 'background:#d1fae5;color:#065f46;margin-left:6px;';
+    const prefix = subNodeFilter.warnOnly ? '子节点异常：' : '子节点：';
+    stageTag = `<span class="tag" style="${tagStyle}">${prefix}${currentStageFilter} / ${subNodeFilter.kw} <a href="javascript:void(0)" onclick="clearStageFilter()" style="margin-left:4px;color:inherit;text-decoration:underline;">清除</a></span>`;
+  } else if (currentStageFilter) {
+    const tagStyle = currentStageWarnOnly ? 'background:#fee2e2;color:#991b1b;margin-left:6px;' : 'background:#dbeafe;color:#1e40af;margin-left:6px;';
+    const prefix = currentStageWarnOnly ? '节点异常：' : '节点：';
+    stageTag = `<span class="tag" style="${tagStyle}">${prefix}${currentStageFilter} <a href="javascript:void(0)" onclick="clearStageFilter()" style="margin-left:4px;color:inherit;text-decoration:underline;">清除</a></span>`;
+  }
+  document.getElementById('summaryBar').innerHTML =
+    `📌 当前视图：<strong>${labelMap[gFilter]||gFilter}</strong>${stageTag} | 共 <strong>${data.length}</strong> 条${gSortByDate ? ' | 📅 按监管日期排序' : ''}`;
+}
+
+function clearStageFilter() {
+  currentStageFilter = null;
+  currentStageWarnOnly = false;
+  subNodeFilter = null;
+  renderSwimlane();
+  refresh();
+}
+
+function syncBtns() {
+  [['btnAll','all'],['btnProgress','progress'],['btnWarn','warn'],['btnLt2','lt2'],['btnLt5','lt5']].forEach(([id, f]) => {
+    document.getElementById(id).classList.toggle('active', gFilter === f);
+  });
+}
+
+// ============================================================
+//  搜索 + 刷新
+// ============================================================
+function onSearch() {
+  gSearch = document.getElementById('searchBox').value.trim();
+  refresh();
+}
+
+function refresh() {
+  const data = getFiltered();
+  renderStats();
+  renderSwimlane();
+  renderSummary(data);
+  renderTable(data);
+  syncBtns();
+}
+
+// ============================================================
+//  初始化
+// ============================================================
+function init() {
+  initColVis();
+  buildColPanel();
+
+  document.getElementById('btnSortDate').classList.toggle('active', gSortByDate);
+
+  document.getElementById('btnAll').onclick       = () => { gFilter='all';       currentStageFilter=null; subNodeFilter=null; syncBtns(); renderSwimlane(); refresh(); };
+  document.getElementById('btnProgress').onclick  = () => { gFilter='progress';  currentStageFilter=null; subNodeFilter=null; syncBtns(); renderSwimlane(); refresh(); };
+  document.getElementById('btnWarn').onclick      = () => { gFilter='warn';      currentStageFilter=null; subNodeFilter=null; syncBtns(); renderSwimlane(); refresh(); };
+  document.getElementById('btnLt2').onclick  = () => { gFilter='lt2';  currentStageFilter=null; subNodeFilter=null; syncBtns(); renderSwimlane(); refresh(); };
+  document.getElementById('btnLt5').onclick  = () => { gFilter='lt5';  currentStageFilter=null; subNodeFilter=null; syncBtns(); renderSwimlane(); refresh(); };
+
+  refresh();
+}
+init();
+</script>
+</body>
+</html>
